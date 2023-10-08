@@ -6,44 +6,51 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.exceptions import InvalidSignature
 from tkinter import Tk, Button, filedialog, messagebox, Label, Frame
 
-private_key_pem = None
-public_key_pem = None
+clave_privada_pem = None
+clave_publica_pem = None
 
-def generate_key_pair():
-    global private_key_pem, public_key_pem
 
-    private_key = rsa.generate_private_key(
+def generar_par_de_claves():
+    """
+    Genera un par de claves pública y privada RSA de 2048 bits y las guarda en archivos.
+    """
+    global clave_privada_pem, clave_publica_pem
+
+    clave_privada = rsa.generate_private_key(
         public_exponent=65537,
         key_size=2048,
     )
-    private_pem = private_key.private_bytes(
+    clave_privada_pem = clave_privada.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.PKCS8,
         encryption_algorithm=serialization.NoEncryption()
     )
 
-    public_key = private_key.public_key()
-    public_pem = public_key.public_bytes(
+    clave_publica = clave_privada.public_key()
+    clave_publica_pem = clave_publica.public_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo
     )
 
-    with open('private_key.pem', 'wb') as private_key_file:
-        private_key_file.write(private_pem)
-    with open('public_key.pem', 'wb') as public_key_file:
-        public_key_file.write(public_pem)
+    with open('clave_privada.pem', 'wb') as archivo_clave_privada:
+        archivo_clave_privada.write(clave_privada_pem)
+    with open('clave_publica.pem', 'wb') as archivo_clave_publica:
+        archivo_clave_publica.write(clave_publica_pem)
 
-    private_key_pem, public_key_pem = private_pem, public_pem
-    messagebox.showinfo("Keys Generated", "Public and private keys generated successfully.")
+    messagebox.showinfo("Claves Generadas", "Clave pública y privada generadas exitosamente.")
 
-def sign_file(private_key_pem, file_path):
-    with open(file_path, 'rb') as file:
-        data = file.read()
 
-    private_key = serialization.load_pem_private_key(private_key_pem, password=None)
+def firmar_archivo(clave_privada_pem, ruta_archivo):
+    """
+    Firma un archivo utilizando la clave privada y guarda la firma en un archivo con extensión .sig.
+    """
+    with open(ruta_archivo, 'rb') as archivo:
+        datos = archivo.read()
 
-    signature = private_key.sign(
-        data,
+    clave_privada = serialization.load_pem_private_key(clave_privada_pem, password=None)
+
+    firma = clave_privada.sign(
+        datos,
         padding.PSS(
             mgf=padding.MGF1(hashes.SHA256()),
             salt_length=padding.PSS.MAX_LENGTH
@@ -51,58 +58,77 @@ def sign_file(private_key_pem, file_path):
         hashes.SHA256()
     )
 
-    with open(file_path + '.sig', 'wb') as signature_file:
-        signature_file.write(signature)
+    with open(ruta_archivo + '.sig', 'wb') as archivo_firma:
+        archivo_firma.write(firma)
 
-    print("File signed:", file_path)
+    print("Archivo firmado:", ruta_archivo)
 
-def verify_signature(public_key_pem, file_path, signature_path):
-    with open(file_path, 'rb') as file:
-        data = file.read()
 
-    with open(signature_path, 'rb') as signature_file:
-        signature = signature_file.read()
+def verificar_firma(clave_publica_pem, ruta_archivo, ruta_firma):
+    """
+    Verifica si la firma de un archivo es válida utilizando la clave pública.
+    """
+    with open(ruta_archivo, 'rb') as archivo:
+        datos = archivo.read()
 
-    public_key = serialization.load_pem_public_key(public_key_pem)
+    with open(ruta_firma, 'rb') as archivo_firma:
+        firma = archivo_firma.read()
+
+    clave_publica = serialization.load_pem_public_key(clave_publica_pem)
 
     try:
-        public_key.verify(
-            signature,
-            data,
+        clave_publica.verify(
+            firma,
+            datos,
             padding.PSS(
                 mgf=padding.MGF1(hashes.SHA256()),
                 salt_length=padding.PSS.MAX_LENGTH
             ),
             hashes.SHA256()
         )
-        return True
+        return True  # La firma es válida
     except InvalidSignature:
-        return False
+        return False  # La firma no es válida
 
-def select_file():
-    file_path = filedialog.askopenfilename()
-    if file_path:
-        return file_path
+
+def seleccionar_archivo():
+    """
+    Abre una ventana de selección de archivos y devuelve la ruta del archivo seleccionado.
+    """
+    ruta_archivo = filedialog.askopenfilename()
+    if ruta_archivo:
+        return ruta_archivo
     else:
         return None
 
-def sign_selected_file():
-    file_path = select_file()
-    if file_path:
-        sign_file(private_key_pem, file_path)
-        messagebox.showinfo("File Signed", "File signed successfully.")
 
-def verify_selected_file():
-    file_path = select_file()
-    if file_path:
-        signature_path = filedialog.askopenfilename()
-        if signature_path:
-            if verify_signature(public_key_pem, file_path, signature_path):
-                messagebox.showinfo("Signature Verification", "Signature is valid.")
+def firmar_archivo_seleccionado():
+    """
+    Función de acción para firmar un archivo seleccionado por el usuario.
+    """
+    ruta_archivo = seleccionar_archivo()
+    if ruta_archivo:
+        firmar_archivo(clave_privada_pem, ruta_archivo)
+        messagebox.showinfo("Archivo Firmado", "Archivo firmado exitosamente.")
+
+
+def verificar_firma_seleccionada():
+    """
+    Función de acción para verificar la firma de un archivo seleccionado por el usuario.
+    """
+    ruta_archivo = seleccionar_archivo()
+    if ruta_archivo:
+        ruta_firma = filedialog.askopenfilename()
+        if ruta_firma:
+            if verificar_firma(clave_publica_pem, ruta_archivo, ruta_firma):
+                messagebox.showinfo("Verificación de Firma", "La firma es válida.")
             else:
-                messagebox.showerror("Signature Verification", "Signature is invalid.")
+                messagebox.showerror("Verificación de Firma", "La firma no es válida.")
         else:
-            messagebox.showerror("Signature Verification", "Please select a signature file.")
+            messagebox.showerror("Verificación de Firma", "Por favor, selecciona un archivo de firma.")
+
+
+# Resto del código para la interfaz de usuario...
 
 # Crear ventana principal
 root = Tk()
@@ -117,7 +143,7 @@ frame.pack(padx=20, pady=20)  # Espacio alrededor del frame
 instructions_label1 = Label(frame, text="Instrucciones de uso:", justify="left")
 instructions_label1.pack()
 
-instructions_part1 = Label(frame, text="1. Genera claves haciendo clic en 'Generar Claves'.", justify="left")
+instructions_part1 = Label(frame, text="1. Genera un par de claves haciendo clic en 'Generar Claves'.", justify="left")
 instructions_part1.pack()
 
 instructions_part2 = Label(frame, text="2. Firma un archivo seleccionando 'Firmar Archivo'.", justify="left")
@@ -134,9 +160,9 @@ instructions_part4 = Label(frame, text="- Selecciona el archivo que deseas verif
 instructions_part4.pack()
 
 # Botones
-generate_keys_button = Button(frame, text="Generar Claves", command=generate_key_pair, width=20, height=2)
-sign_button = Button(frame, text="Firmar Archivo", command=sign_selected_file, width=20, height=2)
-verify_button = Button(frame, text="Verificar Firma", command=verify_selected_file, width=20, height=2)
+generate_keys_button = Button(frame, text="Generar Claves", command=generar_par_de_claves, width=20, height=2)
+sign_button = Button(frame, text="Firmar Archivo", command=firmar_archivo_seleccionado, width=20, height=2)
+verify_button = Button(frame, text="Verificar Firma", command=verificar_firma_seleccionada, width=20, height=2)
 
 generate_keys_button.pack(pady=10)
 sign_button.pack(pady=10)
